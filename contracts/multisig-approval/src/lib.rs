@@ -641,3 +641,6 @@ impl MultisigContract {
         env.storage().persistent().set(&DataKey::Proposal(proposal_id), &proposal);
     }
 }
+
+mod governance;
+pub use governance::{CONTRACT_VERSION, UPGRADE_TIMELOCK_SECS};

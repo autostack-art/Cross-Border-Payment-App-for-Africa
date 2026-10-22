@@ -293,6 +293,7 @@ impl AgentEscrowContract {
         amount: i128,
         fee_bps: u32,
     ) -> u64 {
+        governance::require_not_paused(&env);
         sender.require_auth();
         if amount <= 0 {
             panic!("amount must be positive");
@@ -519,3 +520,6 @@ impl AgentEscrowContract {
         env.storage().persistent().get(&DataKey::Escrow(escrow_id)).expect("escrow not found")
     }
 }
+
+mod governance;
+pub use governance::{CONTRACT_VERSION, UPGRADE_TIMELOCK_SECS};

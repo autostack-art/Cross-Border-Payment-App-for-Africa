@@ -658,6 +658,7 @@ impl SavingsVaultContract {
     /// Deposit tokens into the vault. Accumulates on top of any existing balance.
     /// Extends the unlock time only if the new unlock_time is later than the current one.
     pub fn deposit(env: Env, user: Address, amount: i128, unlock_time: u64) {
+        governance::require_not_paused(&env);
         user.require_auth();
         if amount <= 0 {
             panic!("Amount must be positive");
@@ -997,3 +998,6 @@ impl SavingsVaultContract {
         );
     }
 }
+
+mod governance;
+pub use governance::{CONTRACT_VERSION, UPGRADE_TIMELOCK_SECS};

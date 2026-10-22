@@ -319,3 +319,6 @@ impl FeeDistributorContract {
         
 
 /* … truncated 8814 chars — edit only what you need near the top … */
+
+mod governance;
+pub use governance::{CONTRACT_VERSION, UPGRADE_TIMELOCK_SECS};

@@ -264,6 +264,7 @@ impl DisputeResolutionContract {
         recipient: Address,
         amount: i128,
     ) -> u64 {
+        governance::require_not_paused(&env);
         if amount <= 0 {
             panic!("amount must be positive");
         }
@@ -382,6 +383,7 @@ impl DisputeResolutionContract {
         recipient: Address,
         amount: i128,
     ) -> u64 {
+        governance::require_not_paused(&env);
         if amount <= 0 {
             panic!("amount must be positive");
         }
@@ -1214,3 +1216,6 @@ impl DisputeResolutionContract {
         result
     }
 }
+
+mod governance;
+pub use governance::{CONTRACT_VERSION, UPGRADE_TIMELOCK_SECS};

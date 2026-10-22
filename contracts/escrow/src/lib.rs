@@ -1,10 +1,7 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, token, Address, BytesN, Env, IntoVal, Symbol};
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env, IntoVal, Symbol};
 
 mod test;
-
-/// Semantic version of this contract. Bumped on every upgrade.
-pub const CONTRACT_VERSION: u32 = 3;
 
 #[derive(Clone)]
 #[contracttype]
@@ -88,19 +85,6 @@ pub struct PartialRelease {
 #[contracttype]
 pub struct EscrowArchived {
     pub escrow_id: u64,
-}
-
-#[derive(Clone)]
-#[contracttype]
-pub struct Upgraded {
-    pub new_wasm_hash: BytesN<32>,
-    pub contract_version: u32,
-}
-
-#[derive(Clone)]
-#[contracttype]
-pub struct Migrated {
-    pub contract_version: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -268,61 +252,6 @@ impl EscrowContract {
         );
     }
 
-    /// Upgrade the contract WASM. Only the admin may call this.
-    ///
-    /// # Irreversibility
-    /// Contract upgrades are **irreversible on-chain**. Once a new WASM hash is
-    /// applied, the previous bytecode cannot be restored. Always test on testnet
-    /// before upgrading mainnet deployments.
-    pub fn upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>) {
-        admin.require_auth();
-
-        let stored_admin: Address = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Admin)
-            .expect("Contract not initialized");
-
-        if admin != stored_admin {
-            panic!("Only admin can upgrade the contract");
-        }
-
-        env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
-
-        env.events().publish(
-            (Symbol::new(&env, "Upgraded"),),
-            Upgraded {
-                new_wasm_hash,
-                contract_version: CONTRACT_VERSION,
-            },
-        );
-    }
-
-    pub fn migrate(env: Env, admin: Address) {
-        require_admin(&env, &admin);
-
-        let current_version: u32 = env
-            .storage()
-            .persistent()
-            .get(&DataKey::ContractVersion)
-            .unwrap_or(0);
-
-        if current_version >= CONTRACT_VERSION {
-            return;
-        }
-
-        env.storage()
-            .persistent()
-            .set(&DataKey::ContractVersion, &CONTRACT_VERSION);
-
-        env.events().publish(
-            (Symbol::new(&env, "Migrated"),),
-            Migrated {
-                contract_version: CONTRACT_VERSION,
-            },
-        );
-    }
-
     pub fn create_escrow(
         env: Env,
         sender: Address,
@@ -331,6 +260,7 @@ impl EscrowContract {
         amount: i128,
         release_fee_bps: u32,
     ) -> u64 {
+        governance::require_not_paused(&env);
         if amount < MIN_ESCROW_AMOUNT {
             panic!("Amount below minimum (100 stroops)");
         }
@@ -420,6 +350,7 @@ impl EscrowContract {
     }
 
     pub fn deposit(env: Env, sender: Address, escrow_id: u64, amount: i128) {
+        governance::require_not_paused(&env);
         if amount <= 0 {
             panic!("Amount must be positive");
         }
@@ -1002,13 +933,6 @@ impl EscrowContract {
         );
     }
 
-    pub fn get_contract_version(env: Env) -> u32 {
-        env.storage()
-            .persistent()
-            .get(&DataKey::ContractVersion)
-            .unwrap_or(0)
-    }
-
     pub fn get_metadata(env: Env) -> (Address, Address) {
         let admin: Address = env
             .storage()
@@ -1041,6 +965,7 @@ impl EscrowContract {
         sender: Address,
         escrows: soroban_sdk::Vec<EscrowParams>,
     ) -> u64 {
+        governance::require_not_paused(&env);
         sender.require_auth();
 
         let batch_size = escrows.len();
@@ -1181,3 +1106,6 @@ impl EscrowContract {
             .get(&DataKey::KycContractAddress)
     }
 }
+
+mod governance;
+pub use governance::{CONTRACT_VERSION, UPGRADE_TIMELOCK_SECS};

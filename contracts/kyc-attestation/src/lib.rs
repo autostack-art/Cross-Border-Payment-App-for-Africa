@@ -290,3 +290,6 @@ impl KycAttestationContract {
     /// * `user` — Ste
 
 /* … truncated 1568 chars — edit only what you need near the top … */
+
+mod governance;
+pub use governance::{CONTRACT_VERSION, UPGRADE_TIMELOCK_SECS};

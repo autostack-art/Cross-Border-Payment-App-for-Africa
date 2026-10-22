@@ -123,6 +123,7 @@ export default function SendMoney() {
         }));
       })
       .catch(() => {});
+  }, [requestId]); // eslint-disable-line react-hooks/exhaustive-deps
   }, [requestId]); // eslint-disable-line react-hooks/exhaustive-deps -- prefill once per request id; must not overwrite later user edits
   const { currencies, convertFromXLM, usingApproximateRates } = useExchangeRates();
   const [pathResult, setPathResult] = useState(null);
@@ -149,6 +150,9 @@ export default function SendMoney() {
 
   const isCrossAsset = usePathPayment && form.destination_asset && form.destination_asset !== form.asset;
 
+  /** Returns true for a valid Ed25519 public key or a federation address */
+  const isValidStellarAddress = (addr) =>
+    (addr.startsWith('G') && addr.length === 56) || addr.includes('*');
   /** True for a checksum-valid Ed25519 key or a well-formed federation address. */
   const isValidStellarAddress = (addr) => validateStellarAddress(addr) === null;
 
@@ -272,6 +276,40 @@ export default function SendMoney() {
       [formIsDirty]
     )
   );
+
+  useEffect(() => {
+    api
+      .get('/wallet/list')
+      .then((r) => {
+        setWallets(r.data.wallets || []);
+        // If no wallet_id in URL, default to the user's default wallet
+        if (!selectedWalletId && r.data.wallets?.length) {
+          const def = r.data.wallets.find((w) => w.is_default) || r.data.wallets[0];
+          setSelectedWalletId(def.id);
+        }
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    api
+      .get('/contacts')
+      .then((r) => setContacts(r.data.contacts || []))
+      .catch(() => {});
+  }, []);
+
+  // Filter contacts based on search term
+  const filteredContacts = useMemo(() => {
+    if (!contactSearch.trim()) return contacts;
+    const searchLower = contactSearch.toLowerCase();
+    return contacts.filter(
+      (contact) =>
+        contact.name.toLowerCase().includes(searchLower) ||
+        contact.wallet_address.toLowerCase().includes(searchLower)
+    );
+  }, [contacts, contactSearch]);
+  const [error, setError] = useState('');
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     api
@@ -1579,6 +1617,7 @@ export default function SendMoney() {
               )}
             </button>
 
+            {!isCrossAsset && (
             {!isCrossAsset && hasWebUSB() && (
               <button
                 type="button"
@@ -1601,6 +1640,19 @@ export default function SendMoney() {
         )}
       </form>
 
+      <LedgerSignModal
+        show={showLedgerModal}
+        onClose={() => setShowLedgerModal(false)}
+        xdr={unsignedXDR}
+        networkPassphrase={ledgerNetworkPassphrase}
+        onSigned={handleLedgerSigned}
+      />
+
+      <QRScanner
+        isOpen={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScan={(address) => setForm({ ...form, recipient_address: address })}
+      />
       <Suspense fallback={null}>
         {showLedgerModal && (
           <LedgerSignModal
@@ -1664,6 +1716,7 @@ export default function SendMoney() {
                   if (!saveContactName.trim()) return;
                   setSaveContactLoading(true);
                   try {
+                    await api.post('/contacts', { name: saveContactName.trim(), wallet_address: showSaveContactPrompt });
                     await api.post('/wallet/contacts', { name: saveContactName.trim(), wallet_address: showSaveContactPrompt });
                     toast.success('Contact saved!');
                   } catch {
@@ -1686,6 +1739,7 @@ export default function SendMoney() {
                 Skip
               </button>
             </div>
+            </form>
           </div>
         </div>
       )}
